@@ -1,28 +1,20 @@
-import React, { useState, useRef } from 'react';
+import { useState } from 'react';
 import {
     useAddOrderMutation,
     useAllOrderQuery,
+
 } from '../../features/api/orderAuth/orderAuth';
-import PurchaseOrderPrint from './PurchaseOrderPrint';
+
 import { useAllItemQuery } from '../../features/api/itemAuth/itemAuth';
 import { useAllSupplierQuery } from '../../features/api/supplierAuth/supplierAuth';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import * as XLSX from 'xlsx';
-import { useReactToPrint } from 'react-to-print';
-
 const OrderTable = () => {
     const { data: items } = useAllItemQuery();
     const { data: suppliers } = useAllSupplierQuery();
     const { data: orders, isLoading, error, refetch } = useAllOrderQuery();
     const [addOrder] = useAddOrderMutation();
-    const [selectedOrder, setSelectedOrder] = useState(null);
-    const printRef = useRef();
-
-    const handlePrint = useReactToPrint({
-        content: () => printRef.current,
-        documentTitle: "Purchase Order",
-    });
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [formValues, setFormValues] = useState({
@@ -30,6 +22,7 @@ const OrderTable = () => {
         itemId: '',
         supplierId: '',
         qty: '',
+
     });
     const [errors, setErrors] = useState({});
 
@@ -48,14 +41,20 @@ const OrderTable = () => {
             formErrors.qty = "Quantity must be a positive number";
         }
 
+
         setErrors(formErrors);
         return Object.keys(formErrors).length === 0;
     };
 
     const handleAddOrder = async () => {
+        console.log("kk");
+
         if (!validateForm()) return;
 
+
         const orderData = { ...formValues };
+        console.log(formValues, "lk");
+
 
         try {
             const response = await addOrder(orderData);
@@ -71,6 +70,7 @@ const OrderTable = () => {
                 itemId: '',
                 supplierId: '',
                 qty: '',
+
             });
             setErrors({});
         } catch (error) {
@@ -78,7 +78,6 @@ const OrderTable = () => {
             toast.error("Unexpected error occurred. Please try again.");
         }
     };
-
     const handleExportToExcel = () => {
         const exportData = orders?.data?.map((order, index) => ({
             "Sl No": index + 1,
@@ -89,18 +88,12 @@ const OrderTable = () => {
             "Price": order.price,
             "Total Price": order.totalPrice,
         }));
-
+        
         const worksheet = XLSX.utils.json_to_sheet(exportData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
         XLSX.writeFile(workbook, "Orders.xlsx");
     };
-
-    const handleOrderPrint = (order) => {
-        setSelectedOrder(order);
-        setTimeout(handlePrint, 0); // Delay print to ensure `selectedOrder` state updates
-    };
-
     return (
         <>
             <ToastContainer />
@@ -137,7 +130,7 @@ const OrderTable = () => {
                                     <th className="py-3 px-4 text-left text-sm font-semibold">Quantity</th>
                                     <th className="py-3 px-4 text-left text-sm font-semibold">Price</th>
                                     <th className="py-3 px-4 text-left text-sm font-semibold">Total Price</th>
-                                    <th className="py-3 px-4 text-left text-sm font-semibold">Actions</th>
+                                    <th className="py-3 px-4 text-left text-sm font-semibold">Net Price</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -147,17 +140,10 @@ const OrderTable = () => {
                                         <td className="py-3 px-4">{new Date(order.orderDate).toLocaleDateString()}</td>
                                         <td className="py-3 px-4">{order.itemId?.itemName}</td>
                                         <td className="py-3 px-4">{order.supplierId?.supplierName}</td>
-                                        <td className="py-3 px-4">{order.qty}</td>
-                                        <td className="py-3 px-4">{order.price}</td>
-                                        <td className="py-3 px-4">{order.totalPrice}</td>
-                                        <td className="py-3 px-4">
-                                            <button
-                                                onClick={() => handleOrderPrint(order)}
-                                                className="px-4 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
-                                            >
-                                                Print
-                                            </button>
-                                        </td>
+                                        <td className="py-3 px-4">{order?.qty}</td>
+                                        <td className="py-3 px-4">{order?.price}</td>
+                                        <td className="py-3 px-4">{order?.totalPrice}</td>
+                                        <td className="py-3 px-4">{order?.netAmount}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -166,17 +152,75 @@ const OrderTable = () => {
                 </div>
             </div>
 
+            {/* Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
                     <div className="bg-white p-8 rounded-lg shadow-lg max-w-lg w-full">
-                        {/* Modal content */}
-                    </div>
-                </div>
-            )}
+                        <h3 className="text-xl font-semibold mb-4">Add New Order</h3>
+                        <div className="space-y-4">
+                            <input
+                                type="date"
+                                name="orderDate"
+                                onChange={handleInputChange}
+                                className="w-full p-2 border border-gray-300 rounded"
+                            />
+                            {errors.orderDate && <p className="text-red-500">{errors.orderDate}</p>}
 
-            {selectedOrder && (
-                <div style={{ display: 'none' }}>
-                    <PurchaseOrderPrint ref={printRef} order={selectedOrder} />
+                            <select
+                                name="itemId"
+                                onChange={handleInputChange}
+                                className="w-full p-2 border border-gray-300 rounded"
+                                value={formValues.itemId}
+                            >
+                                <option value="">Select Item</option>
+                                {items?.data?.map((item) => (
+                                    <option key={item._id} value={item._id}>{item?.itemName}</option>
+                                ))}
+                            </select>
+                            {errors.itemId && <p className="text-red-500">{errors.itemId}</p>}
+
+                            <select
+                                name="supplierId"
+                                onChange={handleInputChange}
+                                className="w-full p-2 border border-gray-300 rounded"
+                                value={formValues.supplierId}
+                            >
+                                <option value="">Select Supplier</option>
+                                {suppliers?.data?.map((supplier) => (
+                                    <option key={supplier._id} value={supplier._id}>
+                                        {supplier.supplierName}
+                                    </option>
+                                ))}
+                            </select>
+                            {errors.supplierId && <p className="text-red-500">{errors.supplierId}</p>}
+
+                            <input
+                                type="number"
+                                name="qty"
+                                placeholder="Quantity"
+                                onChange={handleInputChange}
+                                className="w-full p-2 border border-gray-300 rounded"
+                            />
+                            {errors.qty && <p className="text-red-500">{errors.qty}</p>}
+
+
+
+                        </div>
+                        <div className="flex justify-end space-x-4 mt-4">
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleAddOrder}
+                                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            >
+                                Submit
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </>
